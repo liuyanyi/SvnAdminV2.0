@@ -244,18 +244,50 @@ class Statistics extends Base
     public function GetStatisticsInfo()
     {
         $os = 'Unknown';
-        $versionFiles = [
-            '/etc/redhat-release',  // CentOS, RHEL
-            '/etc/lsb-release',     // Ubuntu
-            '/etc/debian_version',  // Debian
-            '/etc/fedora-release',  // Fedora
-            '/etc/SuSE-release',    // OpenSUSE
-            '/etc/arch-release'     // Arch Linux
-        ];
-        foreach ($versionFiles as $file) {
-            if (file_exists($file)) {
-                $os = trim(file_get_contents($file));
-                break;
+
+        // 1) 优先使用 /etc/os-release（大多数发行版通用）
+        if (file_exists('/etc/os-release')) {
+            $kv = $this->parseKeyValueFile('/etc/os-release');
+            if (!empty($kv['PRETTY_NAME'])) {
+                $os = trim($kv['PRETTY_NAME']);
+            } else {
+                $name = $kv['NAME'] ?? '';
+                $version = $kv['VERSION'] ?? ($kv['VERSION_ID'] ?? '');
+                $os = trim($name . ' ' . $version);
+            }
+        }
+        // 2) Ubuntu: 解析 /etc/lsb-release，优先使用 DISTRIB_DESCRIPTION
+        elseif (file_exists('/etc/lsb-release')) {
+            $kv = $this->parseKeyValueFile('/etc/lsb-release');
+            if (!empty($kv['DISTRIB_DESCRIPTION'])) {
+                $os = trim($kv['DISTRIB_DESCRIPTION']);
+            } else {
+                $id = $kv['DISTRIB_ID'] ?? 'Ubuntu';
+                $rel = $kv['DISTRIB_RELEASE'] ?? '';
+                $code = $kv['DISTRIB_CODENAME'] ?? '';
+                $os = trim($id . ' ' . $rel . ($code ? ' (' . $code . ')' : ''));
+            }
+        }
+        // 3) Debian: /etc/debian_version 只包含版本号，为其加上前缀
+        elseif (file_exists('/etc/debian_version')) {
+            $ver = trim(@file_get_contents('/etc/debian_version'));
+            $os = 'Debian' . ($ver !== '' ? ' ' . $ver : '');
+        }
+        // 4) 其他传统发行版文件作为回退
+        else {
+            $fallbackFiles = [
+                '/etc/redhat-release',  // CentOS, RHEL
+                '/etc/fedora-release',  // Fedora
+                '/etc/SuSE-release',    // OpenSUSE (旧)
+                '/etc/arch-release'     // Arch Linux
+            ];
+            foreach ($fallbackFiles as $file) {
+                if (file_exists($file)) {
+                    $os = trim(@file_get_contents($file));
+                    if ($os !== '') {
+                        break;
+                    }
+                }
             }
         }
 
@@ -293,5 +325,48 @@ class Statistics extends Base
             'groupCount' => $this->database->count('svn_groups'),
             'aliaseCount' => $aliaseCount,
         ]);
+    }
+
+    /**
+     * 解析 key=value 文件（例如 os-release、lsb-release）
+     * - 忽略空行与以#开头的注释
+     * - 去除值两侧成对的引号
+     */
+    private function parseKeyValueFile($path)
+    {
+        $result = [];
+        if (!is_readable($path)) {
+            return $result;
+        }
+        $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            return $result;
+        }
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#') {
+                continue;
+            }
+            // 去除可能的前缀 'export '
+            if (stripos($line, 'export ') === 0) {
+                $line = substr($line, 7);
+            }
+            if (strpos($line, '=') === false) {
+                continue;
+            }
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            // 去除成对引号
+            if (strlen($value) >= 2) {
+                $first = $value[0];
+                $last = substr($value, -1);
+                if (($first === '"' && $last === '"') || ($first === '\'' && $last === '\'')) {
+                    $value = substr($value, 1, -1);
+                }
+            }
+            $result[$key] = $value;
+        }
+        return $result;
     }
 }

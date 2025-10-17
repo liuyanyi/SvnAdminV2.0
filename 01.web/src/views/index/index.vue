@@ -6,8 +6,8 @@
       style="margin-bottom: 10px"
       v-if="display.part1"
     >
-      <p slot="title">
-        <Icon type="md-bulb" />
+      <p slot="title" style="display: flex;">
+        <Icon type="md-bulb" style="margin-right: 8px;" />
         <Tooltip
           max-width="500"
           placement="bottom"
