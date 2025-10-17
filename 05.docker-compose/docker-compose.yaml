@@ -2,7 +2,7 @@ name: svnadmin2
 
 services:
   svnadmin:
-    image: svnadmin:1.0
+    image: svnadmin:20251017
     container_name: svnadmin
     restart: unless-stopped
     # privileged: true
