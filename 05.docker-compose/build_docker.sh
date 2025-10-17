@@ -1,0 +1,1 @@
+docker build -t svnadmin:1.0 -f 03.cicd/svnadmin_docker/dockerfile .

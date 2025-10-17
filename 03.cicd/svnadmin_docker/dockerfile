@@ -1,61 +1,86 @@
-FROM centos:centos7.9.2009
+############################################
+# --- [阶段 1: 构建前端] ---
+############################################
+# 使用官方的 node 镜像作为构建环境，并为其命名为 "builder"
+FROM docker.ainz.work/node:14 AS builder
 
-LABEL MAINTAINER "www.witersen.com 2023-07-23"
+LABEL MAINTAINER "www.witersen.com (Modernized)"
 
-# 时间同步
+# 设置工作目录
+WORKDIR /app
+
+# 拷贝前端项目文件
+COPY 01.web/ .
+
+# 安装依赖并构建
+RUN npm install && npm run build
+
+
+############################################
+# --- [阶段 2: 最终运行环境] ---
+############################################
+# 从一个干净、轻量的 Debian 镜像开始
+FROM docker.ainz.work/debian:11-slim
+
+LABEL MAINTAINER "www.witersen.com (Modernized)"
+
+# 设置环境变量，避免时区选择等交互式提示
 ENV TZ=Asia/Shanghai \
     DEBIAN_FRONTEND=noninteractive
 
-ADD 01.web/ /root/svnadmin_web/
+# 拷贝后端PHP代码、启动脚本和项目默认数据
 ADD 02.php/ /var/www/html/
-ADD 03.cicd/svnadmin_docker/start.sh /root/start.sh
+ADD 03.cicd/svnadmin_docker/start-debian.sh /root/start.sh
 ADD 03.cicd/svnadmin_docker/data/ /home/svnadmin/
+ADD 03.cicd/svnadmin_docker/data/ /opt/svnadmin-seed/
 
-RUN ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime \
-    && echo ${TZ} > /etc/timezone \
-    && localedef -c -i en_US -f UTF-8 C.UTF-8 \
-    && echo 'LANG="C.UTF-8"' >> /etc/sysconfig/i18n \
-    && echo 'LC_ALL="C.UTF-8"' >> /etc/sysconfig/i18n \
-    && echo 'export LANG="C.UTF-8"' >> /etc/profile \
-    && echo 'export LC_ALL="C.UTF-8"' >> /etc/profile\
-    && curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo \
-    && echo -e "[WandiscoSVN]\nname=Wandisco SVN Repo\nbaseurl=http://opensource.wandisco.com/centos/7/svn-${svn_version}/RPMS/x86_64/\nenabled=1\ngpgcheck=0" >/etc/yum.repos.d/wandisco-svn.repo \
-    && yum clean all \
-    && yum makecache \
-    && yum install -y epel-release yum-utils \
-    && rpm -Uvh https://mirrors.aliyun.com/remi/enterprise/remi-release-7.rpm \
-    && yum-config-manager --enable remi-${php_version} \
-    && yum install -y php php-common php-cli php-fpm php-json php-mysqlnd php-mysql php-pdo php-process php-json php-gd php-bcmath php-ldap php-mbstring\
-    && yum install -y httpd mod_dav_svn mod_ldap mod_php subversion subversion-tools \
-    && yum install -y cyrus-sasl cyrus-sasl-lib cyrus-sasl-plain \
-    && yum install -y which \
-    && yum install -y cronie at \
-    && yum clean all \
+# --- [核心改造] 基于 Debian 的环境安装与配置 ---
+RUN set -eux; \
+    printf "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye main contrib non-free\n" > /etc/apt/sources.list; \
+    printf "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye-updates main contrib non-free\n" >> /etc/apt/sources.list; \
+    printf "deb http://mirrors.tuna.tsinghua.edu.cn/debian-security bullseye-security main contrib non-free\n" >> /etc/apt/sources.list; \
+    apt-get update \
+    && apt-get install -y --no-install-recommends locales curl ca-certificates gnupg uuid-runtime \
+    # 1. 设置时区和语言环境
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+    && sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+    && locale-gen \
+    && echo 'LANG="en_US.UTF-8"' > /etc/default/locale \
+    # 2. 安装运行时的必要服务 (不再需要 nodejs)
+    && apt-get install -y --no-install-recommends \
+         apache2 subversion libapache2-mod-svn subversion-tools \
+        php php-fpm php-cli php-common php-json php-mysql php-gd php-bcmath php-ldap php-mbstring php-sqlite3 libapache2-mod-php \
+        sasl2-bin libsasl2-modules libsasl2-modules-ldap cron at \
+    # 3. 创建必要的目录结构
     && cd /home/svnadmin/ \
-    && mkdir -p backup \
-    && mkdir -p crond \
-    && mkdir -p rep \
-    && mkdir -p temp \
-    && mkdir -p templete/initStruct/01/branches \
-    && mkdir -p templete/initStruct/01/tags \
-    && mkdir -p templete/initStruct/01/trunk \
-    && chown -R apache:apache /home/svnadmin/ && mkdir -p /run/php-fpm/ \
-    && sed -i 's/expose_php = On/expose_php = Off/g' /etc/php.ini \
-    && curl -L -o /usr/local/node-v14.18.2-linux-x64.tar.gz https://cdn.npmmirror.com/binaries/node/latest-v14.x/node-v14.18.2-linux-x64.tar.gz \
-    && tar -xvf /usr/local/node-v14.18.2-linux-x64.tar.gz -C /usr/local/ \
-    && ln -s /usr/local/node-v14.18.2-linux-x64/bin/node /usr/local/bin/node \
-    && ln -s /usr/local/node-v14.18.2-linux-x64/bin/npm /usr/local/bin/npm \
-    && npm config set registry https://registry.npmmirror.com \
-    && cd /root/svnadmin_web \
-    && npm install \
-    && npm run build \
-    && mv dist/* /var/www/html/ \
-    && rm -rf /root/svnadmin_web \
-    && rm -rf /usr/local/node-v14.18.2-linux-x64* \
+    && mkdir -p backup crond rep temp logs sasl/ldap templete/initStruct/01/branches templete/initStruct/01/tags templete/initStruct/01/trunk \
+     # 3.1 兼容应用中的 CentOS 风格路径（httpd/conf.d, modules, pid）
+     && mkdir -p /etc/httpd/conf.d \
+     && ln -sf /usr/lib/apache2/modules /etc/httpd/modules \
+     && mkdir -p /run/httpd \
+     && ln -sf /run/apache2/apache2.pid /run/httpd/httpd.pid \
+     && printf "IncludeOptional /etc/httpd/conf.d/*.conf\n" > /etc/apache2/conf-available/httpd-conf-d-compat.conf \
+     && a2enconf httpd-conf-d-compat \
+    # 4. [消除权限步骤] 配置 Apache 和 PHP-FPM 以 root 身份运行
+    && sed -i 's/export APACHE_RUN_USER=www-data/export APACHE_RUN_USER=root/g' /etc/apache2/envvars \
+    && sed -i 's/export APACHE_RUN_GROUP=www-data/export APACHE_RUN_GROUP=root/g' /etc/apache2/envvars \
+    && sed -i 's/user = www-data/user = root/g' /etc/php/7.4/fpm/pool.d/www.conf \
+    && sed -i 's/group = www-data/group = root/g' /etc/php/7.4/fpm/pool.d/www.conf \
+    # 5. 清理 apt 缓存
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
     && chmod +x /root/start.sh
+
+# --- [最关键的一步] ---
+# 从 "builder" 阶段拷贝编译好的前端文件到最终镜像的 Apache Web 目录下（递归复制整个 dist 内容）
+COPY --from=builder /app/dist/ /var/www/html/
+
+# 启用 Apache 的相关模块
+RUN a2enmod dav dav_svn rewrite
 
 EXPOSE 80
 EXPOSE 443
 EXPOSE 3690
 
+# CMD 指向新的启动脚本
 CMD ["/root/start.sh"]

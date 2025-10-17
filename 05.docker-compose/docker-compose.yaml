@@ -1,0 +1,27 @@
+name: svnadmin2
+
+services:
+  svnadmin:
+    image: svnadmin:1.0
+    container_name: svnadmin
+    restart: unless-stopped
+    # privileged: true
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      - "8080:80"
+      - "8443:443"
+      - "3690:3690"
+    volumes:
+      # 必需：持久化数据（仓库、日志、配置模板等）
+      - ./data:/home/svnadmin
+      # 可选：自定义 Apache 额外配置（覆盖容器内 /etc/httpd/conf.d/*）
+      - ./data/conf.d:/etc/httpd/conf.d
+      # 可选：自定义 SASL 配置（如 LDAP 等）
+      - ./data/sasl2:/etc/sasl2
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
