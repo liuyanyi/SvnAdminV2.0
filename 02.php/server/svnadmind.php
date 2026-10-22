@@ -24,6 +24,9 @@ define('BASE_PATH', __DIR__ . '/..');
 
 define('IPC_SVNADMIN', BASE_PATH . '/server/svnadmind.socket');
 
+require_once BASE_PATH . '/app/function/timezone.php';
+funSetTimezone();
+
 require_once BASE_PATH . '/app/util/Config.php';
 require_once BASE_PATH . '/extension/Medoo-1.7.10/src/Medoo.php';
 

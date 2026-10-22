@@ -2,7 +2,7 @@ name: svnadmin2
 
 services:
   svnadmin:
-    image: svnadmin:20251017
+    image: svnadmin:php8.4
     container_name: svnadmin
     restart: unless-stopped
     # privileged: true
@@ -20,7 +20,7 @@ services:
       # 可选：自定义 SASL 配置（如 LDAP 等）
       - ./data/sasl2:/etc/sasl2
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost/ >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS 'http://127.0.0.1/api.php?c=Setting&a=GetVerifyOption&t=web' | grep -q '\"status\":1'"]
       interval: 30s
       timeout: 5s
       retries: 5

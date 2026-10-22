@@ -73,7 +73,7 @@ function funArrayValueEnabled(&$value, $key)
 function funCheckForm($form, $columns)
 {
     //检查数组本身是否合法
-    if (empty($form) || !isset($form)) {
+    if (!is_array($form) || $form === []) {
         return message(200, 0, '参数不合法', [
             'column' => ''
         ]);
@@ -97,8 +97,8 @@ function funCheckForm($form, $columns)
         //检查变量类型是否正确
         $types = explode('|', $columnCheck['type']);
         $typeStatus = false;
-        foreach ($types as $types) {
-            if ($types == gettype($form[$column])) {
+        foreach ($types as $type) {
+            if ($type === gettype($form[$column])) {
                 $typeStatus = true;
             }
         }

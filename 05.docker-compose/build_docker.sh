@@ -7,6 +7,6 @@ DATE_TAG=$(date +%Y%m%d)
 IMAGE_NAME="svnadmin"
 DOCKERFILE="03.cicd/svnadmin_docker/dockerfile"
 
-echo "Building ${IMAGE_NAME}:${DATE_TAG} using ${DOCKERFILE} ..."
-docker build -t "${IMAGE_NAME}:${DATE_TAG}" -f "${DOCKERFILE}" .
-echo "Built ${IMAGE_NAME}:${DATE_TAG}"
+echo "Building ${IMAGE_NAME}:php8.4 using ${DOCKERFILE} ..."
+docker build -t "${IMAGE_NAME}:php8.4" -t "${IMAGE_NAME}:php8.4-${DATE_TAG}" -f "${DOCKERFILE}" .
+echo "Built ${IMAGE_NAME}:php8.4 and ${IMAGE_NAME}:php8.4-${DATE_TAG}"

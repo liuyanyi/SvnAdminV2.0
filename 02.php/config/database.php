@@ -23,7 +23,8 @@
 //     'prefix' => '',
 //     'logging' => false,
 //     'option' => [
-//         PDO::ATTR_CASE => PDO::CASE_NATURAL
+//         PDO::ATTR_CASE => PDO::CASE_NATURAL,
+    //         PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT
 //     ],
 //     'command' => [
 //         'SET SQL_MODE=ANSI_QUOTES'
@@ -39,5 +40,9 @@
 
 return [
     'database_type' => 'sqlite',
-    'database_file' => '%ssvnadmin.db'
+    'database_file' => '%ssvnadmin.db',
+    // Medoo 1.7.x expects PDO operations to report errors without throwing.
+    'option' => [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT
+    ]
 ];

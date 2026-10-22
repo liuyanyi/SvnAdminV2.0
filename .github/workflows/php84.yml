@@ -1,0 +1,35 @@
+name: PHP 8.4 compatibility
+
+on:
+  pull_request:
+    paths:
+      - '02.php/**'
+      - '03.cicd/svnadmin_docker/**'
+      - '05.docker-compose/**'
+      - 'tests/php84_smoke.php'
+      - '.github/workflows/php84.yml'
+  workflow_dispatch:
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint PHP sources on 8.4
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -w /src php:8.4-cli \
+            sh -ec "find 02.php -type f -name '*.php' -print0 | xargs -0 -n1 php -l"
+      - name: Run standalone smoke tests
+        run: docker run --rm -v "$PWD:/src:ro" -w /src php:8.4-cli php tests/php84_smoke.php
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Debian 13 / PHP 8.4 runtime
+        run: docker build -t svnadmin:php8.4-ci -f 03.cicd/svnadmin_docker/dockerfile .
+      - name: Verify runtime and SQLite integration
+        run: |
+          docker run --rm --entrypoint php svnadmin:php8.4-ci -v
+          docker run --rm -v "$PWD:/src:ro" -w /src \
+            --entrypoint php svnadmin:php8.4-ci tests/php84_smoke.php --require-sqlite

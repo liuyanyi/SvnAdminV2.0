@@ -7,7 +7,8 @@ if (!preg_match('/cli/i', php_sapi_name())) {
 //与web入口文件保持一致
 define('BASE_PATH', __DIR__ . '/..');
 
-date_default_timezone_set('PRC');
+require_once BASE_PATH . '/app/function/timezone.php';
+funSetTimezone();
 
 auto_require(BASE_PATH . '/config/');
 

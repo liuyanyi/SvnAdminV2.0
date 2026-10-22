@@ -85,12 +85,14 @@ function funFilePutContents($filename, $data, $daemon = false, $chmod = '777')
 function funDetectState()
 {
     $sock = @socket_create(AF_UNIX, SOCK_STREAM, 0);
+    if ($sock === false) {
+        return 2;
+    }
 
-    @socket_connect($sock, IPC_SVNADMIN, 0);
-
-    socket_set_nonblock($sock);
-
-    socket_set_block($sock);
+    if (@socket_connect($sock, IPC_SVNADMIN) === false) {
+        socket_close($sock);
+        return 2;
+    }
 
     $read_socks = [$sock];
     $write_socks = [$sock];
@@ -100,5 +102,5 @@ function funDetectState()
 
     socket_close($sock);
 
-    return $state;
+    return $state === false ? 0 : $state;
 }

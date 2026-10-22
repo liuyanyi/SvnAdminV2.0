@@ -3,13 +3,14 @@ set -euo pipefail
 
 source /etc/profile || true
 
-# 修正 Apache/PHP-FPM 用户组为 www-data，确保权限
-sed -i 's/export APACHE_RUN_USER=.*/export APACHE_RUN_USER=www-data/' /etc/apache2/envvars
-sed -i 's/export APACHE_RUN_GROUP=.*/export APACHE_RUN_GROUP=www-data/' /etc/apache2/envvars
-sed -i 's/^user\s*=.*/user = www-data/' /etc/php/7.4/fpm/pool.d/www.conf 2>/dev/null || true
-sed -i 's/^group\s*=.*/group = www-data/' /etc/php/7.4/fpm/pool.d/www.conf 2>/dev/null || true
-chown -R www-data:www-data /home/svnadmin || true
-chmod -R 777 /home/svnadmin || true
+# 使用运行时 TZ，保持系统、cron 与 PHP 的时区一致；无效配置立即停止启动。
+export TZ="${TZ:-Asia/Shanghai}"
+/usr/bin/php -r "require '/var/www/html/app/function/timezone.php'; funSetTimezone();"
+test -f "/usr/share/zoneinfo/$TZ"
+ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
+printf '%s\n' "$TZ" > /etc/timezone
+
+# PHP 请求由 Apache mod_php 处理，无需单独启动 PHP-FPM
 
 # 初始化 /home/svnadmin（当为挂载卷且为空时）
 if [ ! -d "/home/svnadmin/rep" ] || [ ! -f "/home/svnadmin/svnserve.conf" ]; then
@@ -22,9 +23,6 @@ fi
 mkdir -p /home/svnadmin/{rep,logs,sasl/ldap,crond,backup,temp,templete/initStruct/01/{branches,tags,trunk}}
 touch /home/svnadmin/svnadmin.db || true
 chown -R www-data:www-data /home/svnadmin || true
-
-# 启动 PHP-FPM（Debian: php-fpm 服务名基于已安装版本的通用入口）
-service php7.4-fpm start || service php-fpm start || true
 
 # 启动 SVN 服务
 /usr/bin/svnserve --daemon --pid-file=/home/svnadmin/svnserve.pid -r '/home/svnadmin/rep/' --config-file '/home/svnadmin/svnserve.conf' --log-file '/home/svnadmin/logs/svnserve.log' --listen-port 3690 --listen-host 0.0.0.0 || true
@@ -47,4 +45,4 @@ mkdir -p /run/apache2
 # 兼容预期的 httpd pid 路径
 mkdir -p /run/httpd
 ln -sf /run/apache2/apache2.pid /run/httpd/httpd.pid
-apache2ctl -D FOREGROUND
+exec apache2ctl -D FOREGROUND

@@ -31,7 +31,8 @@ define('BASE_PATH', __DIR__);
 
 define('IPC_SVNADMIN', BASE_PATH . '/server/svnadmind.socket');
 
-date_default_timezone_set('PRC');
+require_once BASE_PATH . '/app/function/timezone.php';
+funSetTimezone();
 
 require_once BASE_PATH . '/app/controller/base/Base.php';
 
