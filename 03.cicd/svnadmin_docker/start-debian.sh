@@ -3,6 +3,13 @@ set -euo pipefail
 
 source /etc/profile || true
 
+# 使用运行时 TZ，保持系统、cron 与 PHP 的时区一致；无效配置立即停止启动。
+export TZ="${TZ:-Asia/Shanghai}"
+/usr/bin/php -r "require '/var/www/html/app/function/timezone.php'; funSetTimezone();"
+test -f "/usr/share/zoneinfo/$TZ"
+ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
+printf '%s\n' "$TZ" > /etc/timezone
+
 # PHP 请求由 Apache mod_php 处理，无需单独启动 PHP-FPM
 
 # 初始化 /home/svnadmin（当为挂载卷且为空时）
